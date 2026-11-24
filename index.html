@@ -189,7 +189,8 @@
     0% { opacity: .8; transform: translate(-50%, 0) scale(1); }
     100% { opacity: 0; transform: translate(-20%, -60px) scale(3); }
   }
-  .mic-level { width: 220px; height: 10px; margin: 14px auto 0; border-radius: 999px; background: rgba(255,255,255,.15); overflow: hidden; display: none; }
+  .mic-level { position: relative; width: 220px; height: 10px; margin: 14px auto 0; border-radius: 999px; background: rgba(255,255,255,.15); overflow: hidden; display: none; }
+  .mic-level::after { content: ""; position: absolute; top: 0; bottom: 0; left: 18%; width: 2px; background: #fff; opacity: .8; }
   .mic-level > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--pink)); }
 
   /* ---------- Écran 4 : carte finale ---------- */
@@ -301,6 +302,7 @@ Merci d'être une amie aussi incroyable.
 Que cette nouvelle année t'apporte tout ce dont tu rêves ! 💖`;
 const OBJECTIF = 15;      // nombre de cadeaux à attraper
 const NB_BOUGIES = 5;     // nombre de bougies sur le gâteau
+const SEUIL_SOUFFLE = 0.18; // niveau du micro (0 à 1) qui éteint toutes les bougies
 
 /* ========================================================= */
 const params = new URLSearchParams(location.search);
@@ -560,18 +562,19 @@ $("micBtn").addEventListener("click", async () => {
     const data = new Uint8Array(an.fftSize);
     $("micBtn").textContent = "🌬️ Souffle fort !";
     $("micLevel").style.display = "block";
-    let cooldown = 0;
     const tick = () => {
       an.getByteTimeDomainData(data);
       let sum = 0;
       for (const v of data) { const d = (v - 128) / 128; sum += d * d; }
       const rms = Math.sqrt(sum / data.length);
-      $("micLevel").firstElementChild.style.width = Math.min(100, rms * 400) + "%";
-      cooldown--;
-      if (rms > 0.12 && cooldown <= 0) {
-        const lit = [...document.querySelectorAll(".candle:not(.out)")];
-        if (lit.length) blowOut(lit[Math.floor(Math.random() * lit.length)]);
-        cooldown = 8;
+      const level = Math.min(1, rms * 4);            // 0 → 1 (la barre affichée)
+      $("micLevel").firstElementChild.style.width = level * 100 + "%";
+      if (level >= SEUIL_SOUFFLE) {
+        // Un seul souffle suffit : toutes les bougies s'éteignent d'un coup
+        cancelAnimationFrame(micRaf);
+        [...document.querySelectorAll(".candle:not(.out)")]
+          .forEach((c, i) => setTimeout(() => blowOut(c), i * 90));
+        return;
       }
       micRaf = requestAnimationFrame(tick);
     };
